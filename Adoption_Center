@@ -1,0 +1,197 @@
+#include <iostream>
+#include <vector>
+#include <fstream>
+#include <map>
+#include <memory>
+using namespace std;
+
+// ---------------- Base Class ----------------
+class Animal {
+protected:
+    string name;
+    int age;
+    string breed;
+    bool adopted;
+
+public:
+    Animal(string n, int a, string b) : name(n), age(a), breed(b), adopted(false) {}
+    virtual void display() = 0;
+    string getName() { return name; }
+    string getBreed() { return breed; }
+    bool isAdopted() { return adopted; }
+    void adopt() { adopted = true; }
+    virtual string getType() = 0;
+    virtual string serialize() = 0;
+};
+
+// ---------------- Derived Class: Dog ----------------
+class Dog : public Animal {
+    string size;
+    string energyLevel;
+public:
+    Dog(string n, int a, string b, string s, string e) 
+        : Animal(n, a, b), size(s), energyLevel(e) {}
+    void display() override {
+        cout << "Dog - Name: " << name << ", Age: " << age 
+             << ", Breed: " << breed << ", Size: " << size 
+             << ", Energy: " << energyLevel << endl;
+    }
+    string getType() override { return "Dog"; }
+    string serialize() override {
+        return "Dog," + name + "," + to_string(age) + "," + breed + "," + size + "," + energyLevel + "," + (adopted ? "1" : "0");
+    }
+};
+
+// ---------------- Derived Class: Cat ----------------
+class Cat : public Animal {
+    string indoorOutdoor;
+    string favoriteToy;
+public:
+    Cat(string n, int a, string b, string io, string toy) 
+        : Animal(n, a, b), indoorOutdoor(io), favoriteToy(toy) {}
+    void display() override {
+        cout << "Cat - Name: " << name << ", Age: " << age 
+             << ", Breed: " << breed << ", Indoor/Outdoor: " 
+             << indoorOutdoor << ", Toy: " << favoriteToy << endl;
+    }
+    string getType() override { return "Cat"; }
+    string serialize() override {
+        return "Cat," + name + "," + to_string(age) + "," + breed + "," + indoorOutdoor + "," + favoriteToy + "," + (adopted ? "1" : "0");
+    }
+};
+
+// ---------------- Manager Class ----------------
+class AdoptionCenter {
+    vector<shared_ptr<Animal>> animals;
+
+public:
+    void addAnimal(shared_ptr<Animal> a) {
+        animals.push_back(a);
+        cout << "Animal added.\n";
+    }
+
+    void listAnimals(bool showAdopted = false) {
+        for (auto& a : animals) {
+            if (a->isAdopted() && !showAdopted) continue;
+            a->display();
+        }
+    }
+
+    void adoptAnimal(string name) {
+        for (auto& a : animals) {
+            if (a->getName() == name && !a->isAdopted()) {
+                a->adopt();
+                cout << name << " has been adopted.\n";
+                return;
+            }
+        }
+        cout << "Animal not found or already adopted.\n";
+    }
+
+    void saveToFile(string filename) {
+        ofstream out(filename);
+        for (auto& a : animals) {
+            out << a->serialize() << endl;
+        }
+        out.close();
+        cout << "Data saved.\n";
+    }
+
+    void loadFromFile(string filename) {
+        ifstream in(filename);
+        string type, name, breed, extra1, extra2, adoptedStr;
+        int age;
+        animals.clear();
+
+        while (getline(in, type, ',')) {
+            getline(in, name, ',');
+            in >> age;
+            in.ignore(); // skip comma
+            getline(in, breed, ',');
+
+            if (type == "Dog") {
+                getline(in, extra1, ','); // size
+                getline(in, extra2, ','); // energy
+                getline(in, adoptedStr);
+                auto dog = make_shared<Dog>(name, age, breed, extra1, extra2);
+                if (adoptedStr == "1") dog->adopt();
+                animals.push_back(dog);
+            }
+            else if (type == "Cat") {
+                getline(in, extra1, ','); // indoor/outdoor
+                getline(in, extra2, ','); // toy
+                getline(in, adoptedStr);
+                auto cat = make_shared<Cat>(name, age, breed, extra1, extra2);
+                if (adoptedStr == "1") cat->adopt();
+                animals.push_back(cat);
+            }
+        }
+
+        in.close();
+        cout << "Data loaded.\n";
+    }
+
+    void searchByBreed(string breed) {
+        for (auto& a : animals) {
+            if (a->getBreed() == breed && !a->isAdopted()) {
+                a->display();
+            }
+        }
+    }
+};
+
+// ---------------- Main Menu ----------------
+int main() {
+    AdoptionCenter center;
+    center.loadFromFile("animals.txt");
+
+    int choice;
+    while (true) {
+        cout << "\n--- Pet Adoption Center ---\n";
+        cout << "1. Add Animal\n2. View Available Animals\n3. Adopt Animal\n4. Search by Breed\n5. Save & Exit\nChoose: ";
+        cin >> choice;
+
+        if (choice == 1) {
+            int type;
+            cout << "1. Dog\n2. Cat\nChoose type: ";
+            cin >> type;
+            string name, breed, extra1, extra2;
+            int age;
+
+            cout << "Enter name: "; cin >> name;
+            cout << "Enter age: "; cin >> age;
+            cout << "Enter breed: "; cin >> breed;
+
+            if (type == 1) {
+                cout << "Enter size: "; cin >> extra1;
+                cout << "Enter energy level: "; cin >> extra2;
+                center.addAnimal(make_shared<Dog>(name, age, breed, extra1, extra2));
+            } else {
+                cout << "Indoor or Outdoor: "; cin >> extra1;
+                cout << "Favorite toy: "; cin >> extra2;
+                center.addAnimal(make_shared<Cat>(name, age, breed, extra1, extra2));
+            }
+        }
+        else if (choice == 2) {
+            center.listAnimals();
+        }
+        else if (choice == 3) {
+            string name;
+            cout << "Enter name to adopt: ";
+            cin >> name;
+            center.adoptAnimal(name);
+        }
+        else if (choice == 4) {
+            string breed;
+            cout << "Enter breed: ";
+            cin >> breed;
+            center.searchByBreed(breed);
+        }
+        else if (choice == 5) {
+            center.saveToFile("animals.txt");
+            break;
+        }
+    }
+
+    return 0;
+}
