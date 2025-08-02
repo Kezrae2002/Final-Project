@@ -1,197 +1,271 @@
 #include <iostream>
 #include <vector>
-#include <fstream>
-#include <map>
 #include <memory>
+#include <fstream>
+#include <sstream>
+#include <algorithm>
+#include <limits>  // For numeric_limits
+
 using namespace std;
 
-// ---------------- Base Class ----------------
 class Animal {
 protected:
     string name;
     int age;
     string breed;
-    bool adopted;
 
 public:
-    Animal(string n, int a, string b) : name(n), age(a), breed(b), adopted(false) {}
-    virtual void display() = 0;
-    string getName() { return name; }
-    string getBreed() { return breed; }
-    bool isAdopted() { return adopted; }
-    void adopt() { adopted = true; }
-    virtual string getType() = 0;
-    virtual string serialize() = 0;
+    Animal(const string& n, int a, const string& b) : name(n), age(a), breed(b) {}
+
+    virtual void display() const {
+        cout << "Name: " << name << ", Age: " << age << ", Breed: " << breed;
+    }
+
+    virtual string getType() const = 0;
+
+    virtual string toFileString() const {
+        return getType() + "," + name + "," + to_string(age) + "," + breed;
+    }
+
+    string getBreed() const { return breed; }
 };
 
-// ---------------- Derived Class: Dog ----------------
 class Dog : public Animal {
-    string size;
-    string energyLevel;
 public:
-    Dog(string n, int a, string b, string s, string e) 
-        : Animal(n, a, b), size(s), energyLevel(e) {}
-    void display() override {
-        cout << "Dog - Name: " << name << ", Age: " << age 
-             << ", Breed: " << breed << ", Size: " << size 
-             << ", Energy: " << energyLevel << endl;
+    Dog(const string& n, int a, const string& b) : Animal(n, a, b) {}
+
+    void display() const override {
+        cout << "[Dog] ";
+        Animal::display();
     }
-    string getType() override { return "Dog"; }
-    string serialize() override {
-        return "Dog," + name + "," + to_string(age) + "," + breed + "," + size + "," + energyLevel + "," + (adopted ? "1" : "0");
+
+    string getType() const override {
+        return "dog";
     }
 };
 
-// ---------------- Derived Class: Cat ----------------
 class Cat : public Animal {
-    string indoorOutdoor;
-    string favoriteToy;
 public:
-    Cat(string n, int a, string b, string io, string toy) 
-        : Animal(n, a, b), indoorOutdoor(io), favoriteToy(toy) {}
-    void display() override {
-        cout << "Cat - Name: " << name << ", Age: " << age 
-             << ", Breed: " << breed << ", Indoor/Outdoor: " 
-             << indoorOutdoor << ", Toy: " << favoriteToy << endl;
+    Cat(const string& n, int a, const string& b) : Animal(n, a, b) {}
+
+    void display() const override {
+        cout << "[Cat] ";
+        Animal::display();
     }
-    string getType() override { return "Cat"; }
-    string serialize() override {
-        return "Cat," + name + "," + to_string(age) + "," + breed + "," + indoorOutdoor + "," + favoriteToy + "," + (adopted ? "1" : "0");
+
+    string getType() const override {
+        return "cat";
     }
 };
 
-// ---------------- Manager Class ----------------
 class AdoptionCenter {
+private:
     vector<shared_ptr<Animal>> animals;
 
-public:
-    void addAnimal(shared_ptr<Animal> a) {
-        animals.push_back(a);
-        cout << "Animal added.\n";
-    }
-
-    void listAnimals(bool showAdopted = false) {
-        for (auto& a : animals) {
-            if (a->isAdopted() && !showAdopted) continue;
-            a->display();
-        }
-    }
-
-    void adoptAnimal(string name) {
-        for (auto& a : animals) {
-            if (a->getName() == name && !a->isAdopted()) {
-                a->adopt();
-                cout << name << " has been adopted.\n";
-                return;
+    int getValidatedIndex(int max) {
+        int index;
+        while (true) {
+            cin >> index;
+            if (!cin.fail() && index >= 1 && index <= max) {
+                cin.ignore(numeric_limits<streamsize>::max(), '\n'); // clear rest of line
+                return index - 1;
             }
+            cout << "Invalid number. Please enter a valid option (1 to " << max << "): ";
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
         }
-        cout << "Animal not found or already adopted.\n";
     }
 
-    void saveToFile(string filename) {
-        ofstream out(filename);
-        for (auto& a : animals) {
-            out << a->serialize() << endl;
-        }
-        out.close();
-        cout << "Data saved.\n";
-    }
-
-    void loadFromFile(string filename) {
-        ifstream in(filename);
-        string type, name, breed, extra1, extra2, adoptedStr;
+    int getValidatedAge() {
         int age;
-        animals.clear();
-
-        while (getline(in, type, ',')) {
-            getline(in, name, ',');
-            in >> age;
-            in.ignore(); // skip comma
-            getline(in, breed, ',');
-
-            if (type == "Dog") {
-                getline(in, extra1, ','); // size
-                getline(in, extra2, ','); // energy
-                getline(in, adoptedStr);
-                auto dog = make_shared<Dog>(name, age, breed, extra1, extra2);
-                if (adoptedStr == "1") dog->adopt();
-                animals.push_back(dog);
+        while (true) {
+            cin >> age;
+            if (!cin.fail() && age >= 0 && age <= 100) {
+                cin.ignore(numeric_limits<streamsize>::max(), '\n');
+                return age;
             }
-            else if (type == "Cat") {
-                getline(in, extra1, ','); // indoor/outdoor
-                getline(in, extra2, ','); // toy
-                getline(in, adoptedStr);
-                auto cat = make_shared<Cat>(name, age, breed, extra1, extra2);
-                if (adoptedStr == "1") cat->adopt();
-                animals.push_back(cat);
-            }
+            cout << "Enter a valid age (0-100): ";
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
         }
-
-        in.close();
-        cout << "Data loaded.\n";
     }
 
-    void searchByBreed(string breed) {
-        for (auto& a : animals) {
-            if (a->getBreed() == breed && !a->isAdopted()) {
+    string getNonEmptyLine(const string& prompt) {
+        string input;
+        cout << prompt;
+        getline(cin, input);
+        while (input.empty()) {
+            cout << "Input cannot be empty. " << prompt;
+            getline(cin, input);
+        }
+        return input;
+    }
+
+public:
+    void addAnimal() {
+        string type;
+        cout << "Enter type (dog/cat): ";
+        getline(cin, type);
+
+        // Convert to lowercase
+        transform(type.begin(), type.end(), type.begin(), ::tolower);
+
+        if (type != "dog" && type != "cat") {
+            cout << "Invalid animal type.\n";
+            return;
+        }
+
+        string name = getNonEmptyLine("Enter name: ");
+        cout << "Enter age: ";
+        int age = getValidatedAge();
+        string breed = getNonEmptyLine("Enter breed: ");
+
+        if (type == "dog")
+            animals.push_back(make_shared<Dog>(name, age, breed));
+        else
+            animals.push_back(make_shared<Cat>(name, age, breed));
+
+        cout << "✅ Animal added successfully.\n";
+    }
+
+    void listAnimals() const {
+        if (animals.empty()) {
+            cout << "No animals available.\n";
+            return;
+        }
+
+        cout << "\nAvailable Animals:\n";
+        for (size_t i = 0; i < animals.size(); ++i) {
+            cout << i + 1 << ". ";
+            animals[i]->display();
+            cout << "\n";
+        }
+    }
+
+    void adoptAnimal() {
+        if (animals.empty()) {
+            cout << "No animals available to adopt.\n";
+            return;
+        }
+
+        listAnimals();
+        cout << "Enter the number of the animal to adopt: ";
+        int index = getValidatedIndex((int)animals.size());
+
+        cout << "You adopted: ";
+        animals[index]->display();
+        cout << "\n✅ Adoption successful.\n";
+
+        animals.erase(animals.begin() + index);
+    }
+
+    void saveToFile(const string& filename) const {
+        ofstream out(filename);
+        if (!out) {
+            cout << "Failed to open file for writing.\n";
+            return;
+        }
+
+        for (const auto& a : animals) {
+            out << a->toFileString() << "\n";
+        }
+
+        cout << "✅ Data saved to " << filename << "\n";
+    }
+
+    void loadFromFile(const string& filename) {
+        ifstream in(filename);
+        if (!in) {
+            cout << "No previous data file found.\n";
+            return;
+        }
+
+        animals.clear();
+        string line;
+
+        while (getline(in, line)) {
+            istringstream ss(line);
+            string type, name, ageStr, breed;
+            getline(ss, type, ',');
+            getline(ss, name, ',');
+            getline(ss, ageStr, ',');
+            getline(ss, breed);
+
+            int age = stoi(ageStr);
+
+            if (type == "dog")
+                animals.push_back(make_shared<Dog>(name, age, breed));
+            else if (type == "cat")
+                animals.push_back(make_shared<Cat>(name, age, breed));
+        }
+
+        cout << "✅ Data loaded from " << filename << "\n";
+    }
+
+    void searchByBreed() const {
+        if (animals.empty()) {
+            cout << "No animals available.\n";
+            return;
+        }
+
+        string breed;
+        cout << "Enter breed to search: ";
+        getline(cin, breed);
+
+        bool found = false;
+        for (const auto& a : animals) {
+            if (a->getBreed() == breed) {
                 a->display();
+                cout << "\n";
+                found = true;
             }
         }
+
+        if (!found)
+            cout << "No animals found with that breed.\n";
     }
 };
 
-// ---------------- Main Menu ----------------
 int main() {
     AdoptionCenter center;
-    center.loadFromFile("animals.txt");
+    const string filename = "pets.txt";
+
+    center.loadFromFile(filename);
 
     int choice;
-    while (true) {
-        cout << "\n--- Pet Adoption Center ---\n";
-        cout << "1. Add Animal\n2. View Available Animals\n3. Adopt Animal\n4. Search by Breed\n5. Save & Exit\nChoose: ";
+    do {
+        cout << "\n🐾 Pet Adoption Center Menu:\n";
+        cout << "1. Add Animal\n";
+        cout << "2. List Animals\n";
+        cout << "3. Adopt Animal\n";
+        cout << "4. Save to File\n";
+        cout << "5. Load from File\n";
+        cout << "6. Search by Breed\n";
+        cout << "0. Exit\n";
+        cout << "Enter your choice: ";
+
         cin >> choice;
+        if (cin.fail()) {
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            cout << "Invalid input. Please enter a number from 0 to 6.\n";
+            continue;
+        }
+        cin.ignore(numeric_limits<streamsize>::max(), '\n'); // clear newline after number input
 
-        if (choice == 1) {
-            int type;
-            cout << "1. Dog\n2. Cat\nChoose type: ";
-            cin >> type;
-            string name, breed, extra1, extra2;
-            int age;
+        switch (choice) {
+            case 1: center.addAnimal(); break;
+            case 2: center.listAnimals(); break;
+            case 3: center.adoptAnimal(); break;
+            case 4: center.saveToFile(filename); break;
+            case 5: center.loadFromFile(filename); break;
+            case 6: center.searchByBreed(); break;
+            case 0: cout << "Goodbye!\n"; break;
+            default: cout << "Invalid choice. Try again.\n";
+        }
 
-            cout << "Enter name: "; cin >> name;
-            cout << "Enter age: "; cin >> age;
-            cout << "Enter breed: "; cin >> breed;
-
-            if (type == 1) {
-                cout << "Enter size: "; cin >> extra1;
-                cout << "Enter energy level: "; cin >> extra2;
-                center.addAnimal(make_shared<Dog>(name, age, breed, extra1, extra2));
-            } else {
-                cout << "Indoor or Outdoor: "; cin >> extra1;
-                cout << "Favorite toy: "; cin >> extra2;
-                center.addAnimal(make_shared<Cat>(name, age, breed, extra1, extra2));
-            }
-        }
-        else if (choice == 2) {
-            center.listAnimals();
-        }
-        else if (choice == 3) {
-            string name;
-            cout << "Enter name to adopt: ";
-            cin >> name;
-            center.adoptAnimal(name);
-        }
-        else if (choice == 4) {
-            string breed;
-            cout << "Enter breed: ";
-            cin >> breed;
-            center.searchByBreed(breed);
-        }
-        else if (choice == 5) {
-            center.saveToFile("animals.txt");
-            break;
-        }
-    }
+    } while (choice != 0);
 
     return 0;
 }
+
